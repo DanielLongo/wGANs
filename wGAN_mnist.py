@@ -1,10 +1,19 @@
 import torch
 from torch import nn
+from torch import optim
+import torchvision.datasets
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
 DIM = 64
-BATCH_SZIE = 50
+BATCH_SIZE = 16
 OUTPUT_DIM = 784
 NOISE_DIM = 128
+EPOCHS = 10
+LR = 1e-4
+transform = torchvision.transforms.ToTensor()
+mnist_train = torchvision.datasets.MNIST('./MNIST_data', train=True, download=True, transform=transform)
+TRAIN_LOADER = torch.utils.data.DataLoader(mnist_train, batch_size=BATCH_SIZE)
 
 class Generator(nn.Module):
 	def __init__(self):
@@ -63,8 +72,88 @@ class Discriminator(nn.Module):
 		return out 
 
 def generate_images(generator):
-	noise = torch.randn(BATCH_SZIE, NOISE_DIM)
+	noise = torch.randn(BATCH_SIZE, NOISE_DIM)
 	images = generator(noise)
-	images = images.view(BATCH_SZIE, 28, 28)
-
+	images = images.view(BATCH_SIZE, 28, 28)
 	return images
+
+def propagate(x):
+	z = torch.randn(BATCH_SIZE, NOISE_DIM)
+	images_fake = generator(z)
+	D_labels_fake = discriminator(images_fake)
+	D_labels_real = discriminator(x)
+	return D_labels_real, D_labels_fake
+
+def reset_grad():
+    generator.zero_grad()
+    discriminator.zero_grad()
+
+generator = Generator()
+discriminator = Discriminator()
+
+G_solver = optim.RMSprop(generator.parameters(), lr=LR)
+D_solver = optim.RMSprop(discriminator.parameters(), lr=LR)
+
+for epoch in range(EPOCHS):
+	for i, (examples, _) in enumerate(TRAIN_LOADER):
+		reset_grad()
+		D_labels_real, D_labels_fake = propagate(examples)
+
+		if (i % 5) != 0: #train discrminator more EXPLAIN
+			D_loss = -(torch.mean(D_labels_real) - torch.mean(D_labels_fake))
+			D_loss.backward()
+			D_solver.step()
+			#weight clipping 
+			for p in discriminator.parameters(): #explain weight clippings EXLAIN
+				p.data.clamp_(-.01, .01)
+			continue
+
+		G_loss = -torch.mean(D_labels_fake)
+		G_loss.backward()
+		G_solver.step()
+
+		if i % 1000 == 0:
+			if i != 0:
+				print("Generator Loss:", G_loss.detach().numpy())
+				print("Discriminator Loss:", D_loss.detach().numpy())
+			fig = plt.figure(figsize=(4, 4))
+			gs = gridspec.GridSpec(4, 4)
+			gs.update(wspace=.05, hspace=.05)
+
+			images = generator(torch.randn(16, NOISE_DIM)).data.numpy()
+			for img_num, sample in enumerate(images):
+				ax = plt.subplot(gs[img_num])
+				plt.axis('off')
+				ax.set_xticklabels([])
+				ax.set_yticklabels([])
+				ax.set_aspect('equal')
+				plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
+
+			filename = "test-" + str(epoch) + "-" + str(i) 
+			print("file logged")
+			plt.savefig("./generated_images/" + filename, bbox_inches="tight" )
+			plt.close(fig)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def calc_gradient_penalty(discriminator, real_data, fake_data):
+# 	alpha = torch.rand(real_data.shape)
+# 	interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+# 	disc_interpolates = discriminator(interpolates)
+
+# 	grads = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates, grad_outputs=torch.ones(disc_interpolates.shape),
+# 		create_graph=True, retain_graph=True, only_inputs=True)
