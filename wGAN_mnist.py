@@ -13,7 +13,7 @@ EPOCHS = 10
 LR = 1e-4
 transform = torchvision.transforms.ToTensor()
 mnist_train = torchvision.datasets.MNIST('./MNIST_data', train=True, download=True, transform=transform)
-TRAIN_LOADER = torch.utils.data.DataLoader(mnist_train, batch_size=BATCH_SIZE)
+TRAIN_LOADER = torch.utils.data.DataLoader(mnist_train, batch_size=BATCH_SIZE, shuffle=True)
 
 class Generator(nn.Module):
 	def __init__(self):
@@ -94,8 +94,14 @@ discriminator = Discriminator()
 G_solver = optim.RMSprop(generator.parameters(), lr=LR)
 D_solver = optim.RMSprop(discriminator.parameters(), lr=LR)
 
+old_hash = None
 for epoch in range(EPOCHS):
 	for i, (examples, _) in enumerate(TRAIN_LOADER):
+		curr_hash = hash(examples[0])
+		if curr_hash == old_hash:
+			raise ValueError('Got same hash between batches!!!')
+		old_hash = curr_hash
+
 		reset_grad()
 		D_labels_real, D_labels_fake = propagate(examples)
 
