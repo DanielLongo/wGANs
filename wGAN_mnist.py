@@ -99,14 +99,15 @@ for epoch in range(EPOCHS):
 	for i, (examples, _) in enumerate(TRAIN_LOADER):
 		curr_hash = hash(examples[0])
 		if curr_hash == old_hash:
-			raise ValueError('Got same hash between batches!!!')
+			# raise ValueError('Got same hash between batches!!!')
+			print("same hash", "batch #:", i, "epoch:", epoch)
 		old_hash = curr_hash
 
 		reset_grad()
 		D_labels_real, D_labels_fake = propagate(examples)
 
 		if (i % 5) != 0: #train discrminator more EXPLAIN
-			D_loss = -(torch.mean(D_labels_real) - torch.mean(D_labels_fake))
+			D_loss = (torch.mean(D_labels_real) - torch.mean(D_labels_fake))
 			D_loss.backward()
 			D_solver.step()
 			#weight clipping 
@@ -114,11 +115,11 @@ for epoch in range(EPOCHS):
 				p.data.clamp_(-.01, .01)
 			continue
 
-		G_loss = -torch.mean(D_labels_fake)
+		G_loss = torch.mean(D_labels_fake)
 		G_loss.backward()
 		G_solver.step()
 
-		if i % 1000 == 0:
+		if i % 10 == 0:
 			if i != 0:
 				print("Generator Loss:", G_loss.detach().numpy())
 				print("Discriminator Loss:", D_loss.detach().numpy())
@@ -127,6 +128,7 @@ for epoch in range(EPOCHS):
 			gs.update(wspace=.05, hspace=.05)
 
 			images = generator(torch.randn(16, NOISE_DIM)).data.numpy()
+			print(images.shape)
 			for img_num, sample in enumerate(images):
 				ax = plt.subplot(gs[img_num])
 				plt.axis('off')
