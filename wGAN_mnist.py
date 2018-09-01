@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from torch import optim
 import torchvision.datasets
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -11,6 +13,7 @@ OUTPUT_DIM = 784
 NOISE_DIM = 128
 EPOCHS = 10
 LR = 1e-4
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
 transform = torchvision.transforms.ToTensor()
 mnist_train = torchvision.datasets.MNIST('./MNIST_data', train=True, download=True, transform=transform)
 TRAIN_LOADER = torch.utils.data.DataLoader(mnist_train, batch_size=BATCH_SIZE, shuffle=True)
@@ -97,6 +100,7 @@ D_solver = optim.RMSprop(discriminator.parameters(), lr=LR)
 old_hash = None
 for epoch in range(EPOCHS):
 	for i, (examples, _) in enumerate(TRAIN_LOADER):
+		examples = examples.cuda()
 		curr_hash = hash(examples[0])
 		if curr_hash == old_hash:
 			# raise ValueError('Got same hash between batches!!!')
@@ -119,15 +123,15 @@ for epoch in range(EPOCHS):
 		G_loss.backward()
 		G_solver.step()
 
-		if i % 10 == 0:
+		if i % 1000 == 0:
 			if i != 0:
-				print("Generator Loss:", G_loss.detach().numpy())
-				print("Discriminator Loss:", D_loss.detach().numpy())
+				print("Generator Loss:", G_loss.detach().cpu().numpy())
+				print("Discriminator Loss:", D_loss.detach().cpu().numpy())
 			fig = plt.figure(figsize=(4, 4))
 			gs = gridspec.GridSpec(4, 4)
 			gs.update(wspace=.05, hspace=.05)
 
-			images = generator(torch.randn(16, NOISE_DIM)).data.numpy()
+			images = generator(torch.randn(16, NOISE_DIM)).data.cpu().numpy()
 			print(images.shape)
 			for img_num, sample in enumerate(images):
 				ax = plt.subplot(gs[img_num])
@@ -137,7 +141,7 @@ for epoch in range(EPOCHS):
 				ax.set_aspect('equal')
 				plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
 
-			filename = "test-" + str(epoch) + "-" + str(i) 
+			filename = "train-" + str(epoch) + "-" + str(i) 
 			print("file logged")
 			plt.savefig("./generated_images/" + filename, bbox_inches="tight" )
 			plt.close(fig)
